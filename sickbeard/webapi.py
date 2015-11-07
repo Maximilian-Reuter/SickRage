@@ -25,6 +25,8 @@ import datetime
 import re
 import traceback
 
+from subprocess import Popen
+
 import sickbeard
 from sickrage.helper.common import dateFormat, dateTimeFormat, timeFormat
 from sickrage.helper.encoding import ek
@@ -2883,7 +2885,7 @@ class CMD_EpisodeDisplay(ApiCall):
         epObj = showObj.getEpisode(int(self.s), int(self.e))
         if isinstance(epObj, str):
             return _responds(RESULT_FAILURE, msg="Episode not found")
-        call(["C:\Program Files (x86)\VideoLAN\VLC\Vlc.exe", epObj._location])
+        Popen(["C:\Program Files (x86)\VideoLAN\VLC\Vlc.exe", ep_Obj._location])
 
         return _responds(RESULT_SUCCESS)
 
