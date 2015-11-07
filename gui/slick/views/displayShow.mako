@@ -467,7 +467,14 @@
             % else:
                 <img src="${srRoot}/images/info32.png" width="16" height="16" class="plotInfoNone" alt="" />
             % endif
-            ${epResult["name"]}
+            % if epResult["location"] != "":
+                <%
+                    episodeLoc = urllib.quote(epResult['location'].encode('utf8'))
+                %>
+                <a class="epDisplay" href="displayEpisode?show=${show.indexerid}&amp;season=${epResult["season"]}&amp;episode=${epResult["episode"]}">${epResult["name"]}</a>
+            % else:
+                ${epResult["name"]}
+            % endif
             </td>
             <td class="col-name">${epLoc}</td>
             <td class="col-ep">

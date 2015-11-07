@@ -23,6 +23,7 @@ import urllib
 import re
 import datetime
 import codecs
+from subprocess import Popen
 
 import sickbeard
 from sickbeard import config, sab
@@ -1905,6 +1906,20 @@ class Home(WebRoot):
             return json.dumps({'result': 'success'})
         else:
             return json.dumps({'result': 'failure'})
+
+    def displayEpisode(self, show=None, season=None, episode=None):
+
+        # retrieve the episode object and fail if we can't get one
+        ep_obj = self._getEpisode(show, season, episode)
+        if isinstance(ep_obj, str):
+            return json.dumps({'result': 'failure'})
+    
+        logger.log(u"\""+ep_obj._location+"\"")
+        # make a queue item for it and put it on the queue
+        Popen(["C:\Program Files (x86)\VideoLAN\VLC\Vlc.exe", ep_obj._location])
+        
+        return json.dumps({'result': 'success'})
+        	
 
     ### Returns the current ep_queue_item status for the current viewed show.
     # Possible status: Downloaded, Snatched, etc...

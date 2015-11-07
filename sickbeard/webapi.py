@@ -2861,6 +2861,31 @@ class CMD_ShowsStats(ApiCall):
             'shows_active': stats['shows']['active'],
             'shows_total': stats['shows']['total'],
         })
+class CMD_EpisodeDisplay(ApiCall):
+    _help = {"desc": "displays episode in VLC"}
+
+    def __init__(self, args, kwargs):
+        # required
+        self.indexerid, args = self.check_params(args, kwargs, "indexerid", None, True, "int", [])
+        self.s, args = self.check_params(args, kwargs, "season", None, True, "int", [])
+        self.e, args = self.check_params(args, kwargs, "episode", None, True, "int", [])
+        # optional
+        # super, missing, help
+        ApiCall.__init__(self, args, kwargs)
+
+    def run(self):
+        """ Display Episode in VLC """
+        showObj = sickbeard.helpers.findCertainShow(sickbeard.showList, int(self.indexerid))
+        if not showObj:
+            return _responds(RESULT_FAILURE, msg="Show not found")
+
+        # retrieve the episode object and fail if we can't get one
+        epObj = showObj.getEpisode(int(self.s), int(self.e))
+        if isinstance(epObj, str):
+            return _responds(RESULT_FAILURE, msg="Episode not found")
+        call(["C:\Program Files (x86)\VideoLAN\VLC\Vlc.exe", epObj._location])
+
+        return _responds(RESULT_SUCCESS)
 
 # WARNING: never define a cmd call string that contains a "_" (underscore)
 # this is reserved for cmd indexes used while cmd chaining
@@ -2871,6 +2896,7 @@ function_mapper = {
     "help": CMD_Help,
     "future": CMD_ComingEpisodes,
     "episode": CMD_Episode,
+    "episode.display":CMD_EpisodeDisplay,
     "episode.search": CMD_EpisodeSearch,
     "episode.setstatus": CMD_EpisodeSetStatus,
     "episode.subtitlesearch": CMD_SubtitleSearch,

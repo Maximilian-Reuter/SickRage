@@ -244,4 +244,14 @@ $(document).ready(function () {
         }
         setAbsoluteSceneNumbering(forAbsolute, sceneAbsolute);
     });
+	
+	$('.epDisplay').on('click', function (event) {
+        event.preventDefault();
+		selectedEpisode = $(this);
+		var url = selectedEpisode.prop('href');
+		$.getJSON(url, function(data){})
+	   
+    });
+	
+	
 });
