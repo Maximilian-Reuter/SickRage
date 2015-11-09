@@ -114,16 +114,7 @@ $(document).ready(function(){
         $(this).showHideRows(whichClass);
     });
 
-    // initially show/hide all the rows according to the checkboxes
-    $("#checkboxControls input").each(function() {
-        $("tr." + $(this).attr('id')).each(function() {
-            if(this.checked) {
-                $(this).show();
-            } else {
-                $(this).hide();
-            }
-        });
-    });
+    
 
     $.fn.showHideRows = function(whichClass) {
         var status = $('#checkboxControls > input, #' + whichClass).prop('checked');
@@ -151,6 +142,12 @@ $(document).ready(function(){
             }
         });
     };
+    
+    // initially show/hide all the rows according to the checkboxes
+    $("#checkboxControls input").each(function() {
+       var whichClass = $(this).attr('id');
+        $(this).showHideRows(whichClass);
+    });
 
     function setEpisodeSceneNumbering(forSeason, forEpisode, sceneSeason, sceneEpisode) {
         var srRoot = $('#srRoot').val();
