@@ -25,7 +25,7 @@ import urllib
 import datetime
 from dateutil import parser
 
-from common import USER_AGENT, Quality
+from sickbeard.common import USER_AGENT, Quality
 from sickrage.helper.common import dateFormat, dateTimeFormat
 
 
@@ -73,13 +73,13 @@ class AuthURLOpener(SickBeardURLopener):
         return SickBeardURLopener.open(self, url)
 
 
-class SearchResult:
+class SearchResult(object):
     """
     Represents a search result from an indexer.
     """
 
     def __init__(self, episodes):
-        self.provider = -1
+        self.provider = None
 
         # release show object
         self.show = None
@@ -114,6 +114,8 @@ class SearchResult:
         # content
         self.content = None
 
+        self.resultType = ''
+
     def __str__(self):
 
         if self.provider is None:
@@ -124,7 +126,10 @@ class SearchResult:
         for extra in self.extraInfo:
             myString += "  " + extra + "\n"
 
-        myString += "Episode: " + str(self.episodes) + "\n"
+        myString += "Episodes:\n"
+        for ep in self.episodes:
+            myString += "  " + str(ep) + "\n"
+
         myString += "Quality: " + Quality.qualityStrings[self.quality] + "\n"
         myString += "Name: " + self.name + "\n"
         myString += "Size: " + str(self.size) + "\n"
@@ -157,7 +162,7 @@ class TorrentSearchResult(SearchResult):
     resultType = "torrent"
 
 
-class AllShowsListUI:
+class AllShowsListUI(object):
     """
     This class is for indexer api. Instead of prompting with a UI to pick the
     desired result out of a list of shows it tries to be smart about it
@@ -200,7 +205,7 @@ class AllShowsListUI:
         return searchResults
 
 
-class ShowListUI:
+class ShowListUI(object):
     """
     This class is for tvdb-api. Instead of prompting with a UI to pick the
     desired result out of a list of shows it tries to be smart about it
@@ -214,17 +219,18 @@ class ShowListUI:
     def selectSeries(self, allSeries):
         try:
             # try to pick a show that's in my show list
+            showIDList = [int(x.indexerid) for x in sickbeard.showList]
             for curShow in allSeries:
-                if filter(lambda x: int(x.indexerid) == int(curShow['id']), sickbeard.showList):
+                if int(curShow['id']) in showIDList:
                     return curShow
-        except:
+        except Exception:
             pass
 
         # if nothing matches then return first result
         return allSeries[0]
 
 
-class Proper:
+class Proper(object):
     def __init__(self, name, url, date, show):
         self.name = name
         self.url = url
@@ -247,7 +253,7 @@ class Proper:
             self.indexerid) + " from " + str(sickbeard.indexerApi(self.indexer).name)
 
 
-class ErrorViewer:
+class ErrorViewer(object):
     """
     Keeps a static list of UIErrors to be displayed on the UI and allows
     the list to be cleared.
@@ -271,7 +277,7 @@ class ErrorViewer:
         return ErrorViewer.errors
 
 
-class WarningViewer:
+class WarningViewer(object):
     """
     Keeps a static list of (warning) UIErrors to be displayed on the UI and allows
     the list to be cleared.
@@ -295,7 +301,7 @@ class WarningViewer:
         return WarningViewer.errors
 
 
-class UIError:
+class UIError(object):
     """
     Represents an error to be displayed in the web UI.
     """
