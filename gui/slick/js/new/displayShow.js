@@ -274,4 +274,12 @@ $(document).ready(function(){
     .on('shown.bs.popover', function () {
         $.tablesorter.columnSelector.attachTo( $("#showTable, #animeTable"), '#popover-target');
     });
+    
+    $('.epDisplay').on('click', function (event) {
+        event.preventDefault();
+		selectedEpisode = $(this);
+		var url = selectedEpisode.prop('href');
+		$.getJSON(url, function(data){})
+	   
+    });
 });
