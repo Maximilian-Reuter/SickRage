@@ -17,14 +17,13 @@
 # You should have received a copy of the GNU General Public License
 # along with SickRage.  If not, see <http://www.gnu.org/licenses/>.
 
-import traceback
+import io
 import os
+import re
 import time
 import urllib
-import re
 import datetime
-import codecs
-from subprocess import Popen
+import traceback
 
 import sickbeard
 from sickbeard import config, sab
@@ -70,6 +69,8 @@ from sickbeard.versionChecker import CheckVersion
 
 import requests
 import markdown2
+
+from subprocess import Popen
 
 try:
     import json
@@ -4980,7 +4981,6 @@ class ErrorLogs(WebRoot):
             finalData = []
 
             for x in reversed(data_in):
-                x = ss(x)
                 match = re.match(regex, x)
 
                 if match:
@@ -5044,17 +5044,17 @@ class ErrorLogs(WebRoot):
         data = []
 
         if os.path.isfile(logger.logFile):
-            with ek(codecs.open, *[logger.logFile, 'r', 'utf-8']) as f:
+            with io.open(logger.logFile, 'r', encoding='utf-8') as f:
                 data = Get_Data(minLevel, f.readlines(), 0, regex, logFilter, logSearch, maxLines)
 
         for i in range(1, int(sickbeard.LOG_NR)):
             if os.path.isfile(logger.logFile + "." + str(i)) and (len(data) <= maxLines):
-                with ek(codecs.open, *[logger.logFile + "." + str(i), 'r', 'utf-8']) as f:
+                with io.open(logger.logFile + "." + str(i), 'r', encoding='utf-8') as f:
                     data += Get_Data(minLevel, f.readlines(), len(data), regex, logFilter, logSearch, maxLines)
 
         return t.render(
             header="Log File", title="Logs", topmenu="system",
-            logLines="".join(data), minLevel=minLevel, logNameFilters=logNameFilters,
+            logLines=u"".join(data), minLevel=minLevel, logNameFilters=logNameFilters,
             logFilter=logFilter, logSearch=logSearch)
 
     def submit_errors(self):

@@ -18,13 +18,13 @@
 # along with SickRage.  If not, see <http://www.gnu.org/licenses/>.
 # pylint: disable=W0223,E0202
 
+import io
 import os
+import re
 import time
 import urllib
 import datetime
-import re
 import traceback
-from subprocess import Popen
 
 import sickbeard
 from sickrage.helper.common import dateFormat, dateTimeFormat, timeFormat
@@ -60,7 +60,6 @@ from sickbeard.common import UNKNOWN
 from sickbeard.common import WANTED
 from sickbeard.common import ARCHIVED
 from sickbeard.common import statusStrings
-import codecs
 
 try:
     import json
@@ -1213,7 +1212,7 @@ class CMD_Logs(ApiCall):
 
         data = []
         if os.path.isfile(logger.logFile):
-            with ek(codecs.open, *[logger.logFile, 'r', 'utf-8']) as f:
+            with io.open(logger.logFile, 'r', encoding='utf-8') as f:
                 data = f.readlines()
 
         regex = r"^(\d\d\d\d)\-(\d\d)\-(\d\d)\s*(\d\d)\:(\d\d):(\d\d)\s*([A-Z]+)\s*(.+?)\s*\:\:\s*(.*)$"
@@ -1292,7 +1291,7 @@ class CMD_PostProcess(ApiCall):
             self.type = 'manual'
 
         data = processTV.processDir(self.path, process_method=self.process_method, force=self.force_replace,
-                                    is_priority=self.is_priority, failed=self.failed, type=self.type)
+                                    is_priority=self.is_priority, failed=self.failed, proc_type=self.type)
 
         if not self.return_data:
             data = ""
@@ -2867,31 +2866,6 @@ class CMD_ShowsStats(ApiCall):
             'shows_active': stats['shows']['active'],
             'shows_total': stats['shows']['total'],
         })
-class CMD_EpisodeDisplay(ApiCall):
-    _help = {"desc": "displays episode in VLC"}
-
-    def __init__(self, args, kwargs):
-        # required
-        self.indexerid, args = self.check_params(args, kwargs, "indexerid", None, True, "int", [])
-        self.s, args = self.check_params(args, kwargs, "season", None, True, "int", [])
-        self.e, args = self.check_params(args, kwargs, "episode", None, True, "int", [])
-        # optional
-        # super, missing, help
-        ApiCall.__init__(self, args, kwargs)
-
-    def run(self):
-        """ Display Episode in VLC """
-        showObj = sickbeard.helpers.findCertainShow(sickbeard.showList, int(self.indexerid))
-        if not showObj:
-            return _responds(RESULT_FAILURE, msg="Show not found")
-
-        # retrieve the episode object and fail if we can't get one
-        epObj = showObj.getEpisode(int(self.s), int(self.e))
-        if isinstance(epObj, str):
-            return _responds(RESULT_FAILURE, msg="Episode not found")
-        Popen(["C:\Program Files (x86)\VideoLAN\VLC\Vlc.exe", ep_Obj._location])
-
-        return _responds(RESULT_SUCCESS)
 
 
 # WARNING: never define a cmd call string that contains a "_" (underscore)
@@ -2903,7 +2877,6 @@ function_mapper = {
     "help": CMD_Help,
     "future": CMD_ComingEpisodes,
     "episode": CMD_Episode,
-    "episode.display":CMD_EpisodeDisplay,
     "episode.search": CMD_EpisodeSearch,
     "episode.setstatus": CMD_EpisodeSetStatus,
     "episode.subtitlesearch": CMD_SubtitleSearch,
