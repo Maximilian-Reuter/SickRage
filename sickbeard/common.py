@@ -92,6 +92,7 @@ SNATCHED_PROPER = 9  # qualified with quality
 SUBTITLED = 10  # qualified with quality
 FAILED = 11  # episode downloaded or snatched we don't want
 SNATCHED_BEST = 12  # episode redownloaded using best quality
+WATCHED = 13
 
 NAMING_REPEAT = 1
 NAMING_EXTEND = 2
@@ -175,7 +176,8 @@ class Quality(object):
                       SNATCHED_PROPER: "Snatched (Proper)",
                       FAILED: "Failed",
                       SNATCHED_BEST: "Snatched (Best)",
-                      ARCHIVED: "Archived"}
+                      ARCHIVED: "Archived",
+                      WATCHED: "Watched"}
     @staticmethod
     def _getStatusStrings(status):
         """
@@ -487,6 +489,7 @@ class Quality(object):
     FAILED = None
     SNATCHED_BEST = None
     ARCHIVED = None
+    WATCHED = None
 
 Quality.DOWNLOADED = [Quality.compositeStatus(DOWNLOADED, x) for x in Quality.qualityStrings.keys()]
 Quality.SNATCHED = [Quality.compositeStatus(SNATCHED, x) for x in Quality.qualityStrings.keys()]
@@ -494,6 +497,8 @@ Quality.SNATCHED_PROPER = [Quality.compositeStatus(SNATCHED_PROPER, x) for x in 
 Quality.FAILED = [Quality.compositeStatus(FAILED, x) for x in Quality.qualityStrings.keys()]
 Quality.SNATCHED_BEST = [Quality.compositeStatus(SNATCHED_BEST, x) for x in Quality.qualityStrings.keys()]
 Quality.ARCHIVED = [Quality.compositeStatus(ARCHIVED, x) for x in Quality.qualityStrings.keys()]
+Quality.WATCHED = [Quality.compositeStatus(WATCHED, x) for x in Quality.qualityStrings.keys()]
+
 
 HD720p = Quality.combineQualities([Quality.HDTV, Quality.HDWEBDL, Quality.HDBLURAY], [])
 HD1080p = Quality.combineQualities([Quality.FULLHDTV, Quality.FULLHDWEBDL, Quality.FULLHDBLURAY], [])
@@ -543,7 +548,7 @@ class StatusStrings(UserDict):
         the old StatusStrings is fully deprecated, then we will raise a KeyError instead, where appropriate.
         """
         if isinstance(key, int):  # if the key is already an int...
-            if key in self.keys() + Quality.DOWNLOADED + Quality.SNATCHED + Quality.SNATCHED_PROPER + Quality.SNATCHED_BEST + Quality.ARCHIVED:
+            if key in self.keys() + Quality.DOWNLOADED + Quality.SNATCHED + Quality.SNATCHED_PROPER + Quality.SNATCHED_BEST + Quality.ARCHIVED + Quality.WATCHED:
                 status, quality = Quality.splitCompositeStatus(key)
                 if quality == Quality.NONE:  # If a Quality is not listed... (shouldn't this be 'if not quality:'?)
                     return self[status]  # ...return the status...
@@ -574,7 +579,7 @@ class StatusStrings(UserDict):
         try:
             # This will raise a ValueError if we can't convert the key to int
             return ((int(key) in self.data) or
-                    (int(key) in Quality.DOWNLOADED + Quality.SNATCHED + Quality.SNATCHED_PROPER + Quality.SNATCHED_BEST + Quality.ARCHIVED))
+                    (int(key) in Quality.DOWNLOADED + Quality.SNATCHED + Quality.SNATCHED_PROPER + Quality.SNATCHED_BEST + Quality.ARCHIVED + Quality.WATCHED))
         except ValueError:  # The key is not numeric and since we only want numeric keys...
             # ...and we don't want this function to fail...
             pass  # ...suppress the ValueError and do nothing, the key does not exist
@@ -591,7 +596,8 @@ statusStrings = StatusStrings(
      IGNORED: "Ignored",
      SUBTITLED: "Subtitled",
      FAILED: "Failed",
-     SNATCHED_BEST: "Snatched (Best)"
+     SNATCHED_BEST: "Snatched (Best)",
+     WATCHED: "Watched"
      })
 
 # pylint: disable=R0903
@@ -602,6 +608,7 @@ class Overview(object):
     WANTED = WANTED  # 3
     GOOD = 4
     SKIPPED = SKIPPED  # 5
+    WATCHED = WATCHED  # 13
 
     # For both snatched statuses. Note: SNATCHED/QUAL have same value and break dict.
     SNATCHED = SNATCHED_PROPER = SNATCHED_BEST  # 9
@@ -611,7 +618,8 @@ class Overview(object):
                        QUAL: "qual",
                        GOOD: "good",
                        UNAIRED: "unaired",
-                       SNATCHED: "snatched"}
+                       SNATCHED: "snatched",
+                       WATCHED: "watched"}
 
 
 # Get our xml namespaces correct for lxml

@@ -37,7 +37,7 @@ from sickbeard import subtitles
 from sickbeard import network_timezones
 from sickbeard.providers import newznab, rsstorrent
 from sickbeard.common import Quality, Overview, statusStrings, cpu_presets
-from sickbeard.common import SNATCHED, UNAIRED, IGNORED, WANTED, FAILED, SKIPPED
+from sickbeard.common import SNATCHED, UNAIRED, IGNORED, WANTED, FAILED, SKIPPED, WATCHED
 from sickbeard.blackandwhitelist import BlackAndWhiteList, short_group_names
 from sickbeard.browser import foldersAtPath
 from sickbeard.scene_numbering import get_scene_numbering, set_scene_numbering, get_scene_numbering_for_show, \
@@ -689,14 +689,16 @@ class Home(WebRoot):
 
         status_quality = '(' + ','.join([str(x) for x in Quality.SNATCHED + Quality.SNATCHED_PROPER]) + ')'
         status_download = '(' + ','.join([str(x) for x in Quality.DOWNLOADED + Quality.ARCHIVED]) + ')'
-
+        status_watched = '(' + ','.join([str(x) for x in Quality.WATCHED]) + ')'
+        
         sql_statement = 'SELECT showid, '
 
         sql_statement += '(SELECT COUNT(*) FROM tv_episodes WHERE showid=tv_eps.showid AND season > 0 AND episode > 0 AND airdate > 1 AND status IN ' + status_quality + ') AS ep_snatched, '
         sql_statement += '(SELECT COUNT(*) FROM tv_episodes WHERE showid=tv_eps.showid AND season > 0 AND episode > 0 AND airdate > 1 AND status IN ' + status_download + ') AS ep_downloaded, '
+        sql_statement += '(SELECT COUNT(*) FROM tv_episodes WHERE showid=tv_eps.showid AND season > 0 AND episode > 0 AND airdate > 1 AND status IN ' + status_watched + ') AS ep_watched, '
         sql_statement += '(SELECT COUNT(*) FROM tv_episodes WHERE showid=tv_eps.showid AND season > 0 AND episode > 0 AND airdate > 1 '
-        sql_statement += ' AND ((airdate <= ' + today + ' AND (status = ' + str(SKIPPED) + ' OR status = ' + str(WANTED) + ' OR status = ' + str(FAILED) + ')) '
-        sql_statement += ' OR (status IN ' + status_quality + ') OR (status IN ' + status_download + '))) AS ep_total, '
+        sql_statement += ' AND ((airdate <= ' + today + ' AND (status = ' + str(SKIPPED) + ' OR status = ' + str(FAILED) + ')) '
+        sql_statement += ' OR (status IN ' + status_watched + ') OR (status IN ' + status_download + '))) AS ep_total, '
 
         sql_statement += ' (SELECT airdate FROM tv_episodes WHERE showid=tv_eps.showid AND airdate >= ' + today + ' AND (status = ' + str(UNAIRED) + ' OR status = ' + str(WANTED) + ') ORDER BY airdate ASC LIMIT 1) AS ep_airs_next, '
         sql_statement += ' (SELECT airdate FROM tv_episodes WHERE showid=tv_eps.showid AND airdate > 1 AND status <> ' + str(UNAIRED) + ' ORDER BY airdate DESC LIMIT 1) AS ep_airs_prev '
@@ -1233,6 +1235,7 @@ class Home(WebRoot):
         epCounts[Overview.GOOD] = 0
         epCounts[Overview.UNAIRED] = 0
         epCounts[Overview.SNATCHED] = 0
+        epCounts[Overview.WATCHED] = 0
 
         for curResult in sqlResults:
             curEpCat = showObj.getOverview(int(curResult["status"] or -1))
@@ -1899,18 +1902,35 @@ class Home(WebRoot):
         else:
             return json.dumps({'result': 'failure'})
 
-    def displayEpisode(self, show=None, season=None, episode=None):
+    def displayEpisode(self, show=None, season=None, episode=None, direct=False):
 
         # retrieve the episode object and fail if we can't get one
         ep_obj = self._getEpisode(show, season, episode)
+        sql_l = []
         if isinstance(ep_obj, str):
             return json.dumps({'result': 'failure'})
     
-        logger.log(u"\""+ep_obj._location+"\"")
-        # make a queue item for it and put it on the queue
+        logger.log(u"Showing \""+ep_obj._location+"\"",logger.DEBUG)
+        # open VLC and show episode
         Popen(["C:\Program Files (x86)\VideoLAN\VLC\Vlc.exe", ep_obj._location])
         
-        return json.dumps({'result': 'success'})
+        #set episode as watched
+        curStatus,curQuality = Quality.splitCompositeStatus(ep_obj.status)
+        logger.log(u"current Status \""+str(ep_obj.status)+"\"",logger.DEBUG)
+        logger.log(u"potential new Status \""+str(Quality.compositeStatus(WATCHED,curQuality))+"\"",logger.DEBUG)
+        ep_obj.status =  Quality.compositeStatus(WATCHED,curQuality)
+        logger.log(u"new Status \""+str(ep_obj.status)+"\"",logger.DEBUG)
+        
+        sql_l.append(ep_obj.get_sql())
+        logger.log(u"update Database",logger.DEBUG)
+        if len(sql_l) > 0:
+                myDB = db.DBConnection()
+                myDB.mass_action(sql_l)
+                
+        if direct:
+            return json.dumps({'result': 'success'})
+        else:
+            return self.redirect("/home/displayShow?show=" + show)
         	
 
     ### Returns the current ep_queue_item status for the current viewed show.
@@ -3008,6 +3028,8 @@ class Manage(Home, WebRoot):
             epCounts[Overview.GOOD] = 0
             epCounts[Overview.UNAIRED] = 0
             epCounts[Overview.SNATCHED] = 0
+            epCounts[Overview.WATCHED] = 0
+            
 
             sqlResults = myDB.select(
                 "SELECT * FROM tv_episodes WHERE tv_episodes.showid in (SELECT tv_shows.indexer_id FROM tv_shows WHERE tv_shows.indexer_id = ? AND paused = 0) ORDER BY tv_episodes.season DESC, tv_episodes.episode DESC",

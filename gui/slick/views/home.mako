@@ -2,7 +2,7 @@
 <%!
     import sickbeard
     import calendar
-    from sickbeard.common import SKIPPED, WANTED, UNAIRED, ARCHIVED, IGNORED, SNATCHED, SNATCHED_PROPER, SNATCHED_BEST, FAILED
+    from sickbeard.common import SKIPPED, WANTED, UNAIRED, ARCHIVED, IGNORED, SNATCHED, SNATCHED_PROPER, SNATCHED_BEST, FAILED, WATCHED
     from sickbeard.common import Quality, qualityPresets, qualityPresetStrings
     from sickbeard import db, sbdatetime, network_timezones
     import datetime
@@ -107,7 +107,7 @@
         if not cur_snatched:
             cur_snatched = 0
 
-        cur_downloaded = show_stat[curShow.indexerid]['ep_downloaded']
+        cur_downloaded = show_stat[curShow.indexerid]['ep_watched']
         if not cur_downloaded:
             cur_downloaded = 0
 

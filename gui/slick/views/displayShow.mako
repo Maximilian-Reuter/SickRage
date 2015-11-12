@@ -7,7 +7,7 @@
     from sickbeard import subtitles, sbdatetime, network_timezones
     import sickbeard.helpers
 
-    from sickbeard.common import SKIPPED, WANTED, UNAIRED, ARCHIVED, IGNORED, SNATCHED, SNATCHED_PROPER, SNATCHED_BEST, FAILED
+    from sickbeard.common import SKIPPED, WANTED, UNAIRED, ARCHIVED, IGNORED, SNATCHED, SNATCHED_PROPER, SNATCHED_BEST, FAILED, WATCHED
     from sickbeard.common import Quality, qualityPresets, statusStrings, Overview
 
     from sickbeard.helpers import anon_url
@@ -235,8 +235,8 @@
         % if not sickbeard.USE_FAILED_DOWNLOADS:
         <% availableStatus.remove(FAILED) %>
         % endif
-        % for curStatus in availableStatus + sorted(Quality.DOWNLOADED) + sorted(Quality.ARCHIVED):
-            % if curStatus not in [DOWNLOADED, ARCHIVED]:
+        % for curStatus in availableStatus + sorted(Quality.DOWNLOADED) + sorted(Quality.WATCHED) + sorted(Quality.ARCHIVED):
+            % if curStatus not in [DOWNLOADED, ARCHIVED, WATCHED]:
             <option value="${curStatus}">${statusStrings[curStatus]}</option>
             % endif
         % endfor
@@ -253,6 +253,7 @@
             <label for="wanted"><span class="wanted"><input type="checkbox" id="wanted" checked="checked" /> Wanted: <b>${epCounts[Overview.WANTED]}</b></span></label>
             <label for="qual"><span class="qual"><input type="checkbox" id="qual" checked="checked" /> Low Quality: <b>${epCounts[Overview.QUAL]}</b></span></label>
             <label for="good"><span class="good"><input type="checkbox" id="good" checked="checked" /> Downloaded: <b>${epCounts[Overview.GOOD]}</b></span></label>
+            <label for="watched"><span class="watched"><input type="checkbox" id="watched" checked="checked" /> Watched: <b>${epCounts[Overview.WATCHED]}</b></span></label>
             <label for="skipped"><span class="skipped"><input type="checkbox" id="skipped" checked="checked" /> Skipped: <b>${epCounts[Overview.SKIPPED]}</b></span></label>
             <label for="snatched"><span class="snatched"><input type="checkbox" id="snatched" checked="checked" /> Snatched: <b>${epCounts[Overview.SNATCHED]}</b></span></label>
         </div>

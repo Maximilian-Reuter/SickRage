@@ -270,7 +270,7 @@ $(document).ready(function(){
     .on('shown.bs.popover', function () {
         $.tablesorter.columnSelector.attachTo( $("#showTable, #animeTable"), '#popover-target');
     });
-    
+    /*
     $('.epDisplay').on('click', function (event) {
         event.preventDefault();
 		selectedEpisode = $(this);
@@ -278,4 +278,5 @@ $(document).ready(function(){
 		$.getJSON(url, function(data){})
 	   
     });
+    */
 });
