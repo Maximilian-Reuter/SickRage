@@ -1,5 +1,5 @@
 #!/usr/bin/env python2.7
-# coding=utf-8
+# -*- coding: utf-8 -*
 # Author: Nic Wolfe <nic@wolfeden.ca>
 # URL: http://code.google.com/p/sickbeard/
 #
@@ -57,13 +57,18 @@ import datetime
 import threading
 import getopt
 
+# Do this before importing sickbeard, to prevent locked files and incorrect import
+oldtornado = os.path.abspath(os.path.join(os.path.dirname(__file__), 'tornado'))
+if os.path.isdir(oldtornado):
+    shutil.move(oldtornado, oldtornado + '_kill')
+    shutil.rmtree(oldtornado + '_kill')
+
 import sickbeard
 from sickbeard import db, logger, network_timezones, failed_history, name_cache
 from sickbeard.tv import TVShow
 from sickbeard.webserveInit import SRWebServer
 from sickbeard.event_queue import Events
 from configobj import ConfigObj
-from sickrage.helper.encoding import ek
 
 # http://bugs.python.org/issue7980#msg221094
 throwaway = datetime.datetime.strptime('20110101', '%Y%m%d')
@@ -128,33 +133,6 @@ class SickRage(object):
 
         return help_msg
 
-    @staticmethod
-    def fix_clients_nonsense():
-        filenames = [
-            "sickbeard/clients/download_station.py",
-            "sickbeard/clients/utorrent.py",
-            "sickbeard/clients/qbittorrent.py",
-            "sickbeard/clients/transmission.py",
-            "sickbeard/clients/deluge.py",
-            "sickbeard/clients/deluged.py",
-            "sickbeard/clients/rtorrent.py"
-        ]
-
-        for filename in filenames:
-            filename = ek(os.path.join, sickbeard.PROG_DIR, filename)
-
-            try:
-                if ek(os.path.exists, filename):
-                    ek(os.remove, filename)
-            except Exception:
-                pass
-
-            try:
-                if ek(os.path.exists, filename + "c"):
-                    ek(os.remove, filename + "c")
-            except Exception:
-                pass
-
     # pylint: disable=R0912,R0915
     # Too many branches
     # Too many statements
@@ -174,7 +152,7 @@ class SickRage(object):
 
         # pylint: disable=E1101
         if not sickbeard.SYS_ENCODING or sickbeard.SYS_ENCODING.lower() in ('ansi_x3.4-1968', 'us-ascii', 'ascii', 'charmap') or \
-            (sys.platform.startswith('win') and sys.getwindowsversion()[0] >= 6 and str(sys.stdout.encoding).lower() in ('cp65001', 'charmap')):
+            (sys.platform.startswith('win') and sys.getwindowsversion()[0] >= 6 and getattr(sys.stdout, 'device', sys.stdout).encoding.lower() in ('cp65001', 'charmap')):
             sickbeard.SYS_ENCODING = 'UTF-8'
 
         # Need console logging for SickBeard.py and SickBeard-console.exe
@@ -255,7 +233,7 @@ class SickRage(object):
 
             else:
                 if self.consoleLogging:
-                    sys.stdout.write("Not running in daemon mode. PID file creation disabled.\n")
+                    sys.stdout.write(u"Not running in daemon mode. PID file creation disabled.\n")
 
                 self.CREATEPID = False
 
@@ -289,11 +267,11 @@ class SickRage(object):
         if os.path.exists(restoreDir):
             success = self.restoreDB(restoreDir, sickbeard.DATA_DIR)
             if self.consoleLogging:
-                sys.stdout.write("Restore: restoring DB and config.ini %s!\n" % ("FAILED", "SUCCESSFUL")[success])
+                sys.stdout.write(u"Restore: restoring DB and config.ini %s!\n" % ("FAILED", "SUCCESSFUL")[success])
 
         # Load the config and publish it to the sickbeard package
         if self.consoleLogging and not os.path.isfile(sickbeard.CONFIG_FILE):
-            sys.stdout.write("Unable to find '" + sickbeard.CONFIG_FILE + "' , all settings will be default!" + "\n")
+            sys.stdout.write(u"Unable to find '" + sickbeard.CONFIG_FILE + "' , all settings will be default!" + "\n")
 
         sickbeard.CFG = ConfigObj(sickbeard.CONFIG_FILE)
 
@@ -305,9 +283,6 @@ class SickRage(object):
 
         # Get PID
         sickbeard.PID = os.getpid()
-
-        # Fix clients old files
-        self.fix_clients_nonsense()
 
         # Build from the DB to start with
         self.loadShowsFromDB()
@@ -402,7 +377,7 @@ class SickRage(object):
             if pid != 0:
                 os._exit(0)
         except OSError, e:
-            sys.stderr.write("fork #1 failed: %d (%s)\n" % (e.errno, e.strerror))
+            sys.stderr.write(u"fork #1 failed: %d (%s)\n" % (e.errno, e.strerror))
             sys.exit(1)
 
         os.setsid()  # @UndefinedVariable - only available in UNIX
@@ -420,7 +395,7 @@ class SickRage(object):
             if pid != 0:
                 os._exit(0)
         except OSError, e:
-            sys.stderr.write("fork #2 failed: %d (%s)\n" % (e.errno, e.strerror))
+            sys.stderr.write(u"fork #2 failed: %d (%s)\n" % (e.errno, e.strerror))
             sys.exit(1)
 
         # Write pid
@@ -443,9 +418,10 @@ class SickRage(object):
         stdin = file(devnull, 'r')
         stdout = file(devnull, 'a+')
         stderr = file(devnull, 'a+')
-        os.dup2(stdin.fileno(), sys.stdin.fileno())
-        os.dup2(stdout.fileno(), sys.stdout.fileno())
-        os.dup2(stderr.fileno(), sys.stderr.fileno())
+
+        os.dup2(stdin.fileno(), getattr(sys.stdin, 'device', sys.stdin).fileno())
+        os.dup2(stdout.fileno(), getattr(sys.stdout, 'device', sys.stdout).fileno())
+        os.dup2(stderr.fileno(), getattr(sys.stderr, 'device', sys.stderr).fileno())
 
     @staticmethod
     def remove_pid_file(PIDFILE):

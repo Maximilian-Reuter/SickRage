@@ -20,6 +20,7 @@
 
 
 import os
+import io
 import ctypes
 import random
 import re
@@ -53,7 +54,7 @@ from sickbeard.common import USER_AGENT
 from sickbeard.common import mediaExtensions
 from sickbeard.common import subtitleExtensions
 from sickbeard import db
-from sickbeard import notifiers
+from sickbeard.notifiers.synoindex import notifier as synoindex_notifier
 from sickbeard import clients
 from sickbeard.subtitles import isValidLanguage
 from sickrage.helper.encoding import ek
@@ -356,7 +357,7 @@ def makeDir(path):
         try:
             ek(os.makedirs, path)
             # do the library update for synoindex
-            notifiers.synoindex_notifier.addFolder(path)
+            synoindex_notifier.addFolder(path)
         except OSError:
             return False
     return True
@@ -621,7 +622,7 @@ def make_dirs(path):
                     # use normpath to remove end separator, otherwise checks permissions against itself
                     chmodAsParent(ek(os.path.normpath, sofar))
                     # do the library update for synoindex
-                    notifiers.synoindex_notifier.addFolder(sofar)
+                    synoindex_notifier.addFolder(sofar)
                 except (OSError, IOError) as e:
                     logger.log(u"Failed creating %s : %r" % (sofar, ex(e)), logger.ERROR)
                     return False
@@ -701,7 +702,7 @@ def delete_empty_folders(check_empty_dir, keep_dir=None):
                 # need shutil.rmtree when ignore_items is really implemented
                 ek(os.rmdir, check_empty_dir)
                 # do the library update for synoindex
-                notifiers.synoindex_notifier.deleteFolder(check_empty_dir)
+                synoindex_notifier.deleteFolder(check_empty_dir)
             except OSError as e:
                 logger.log(u"Unable to delete %s. Error: %r" % (check_empty_dir, repr(e)), logger.WARNING)
                 break
@@ -948,6 +949,9 @@ def create_https_certificates(ssl_cert, ssl_key):
     :return: True on success, False on failure
     """
 
+    assert isinstance(ssl_key, unicode)
+    assert isinstance(ssl_cert, unicode)
+
     try:
         from OpenSSL import crypto  # @UnresolvedImport
         from certgen import createKeyPair, createCertRequest, createCertificate, TYPE_RSA, \
@@ -970,8 +974,8 @@ def create_https_certificates(ssl_cert, ssl_key):
     try:
         # pylint: disable=E1101
         # Module has no member
-        open(ssl_key, 'w').write(crypto.dump_privatekey(crypto.FILETYPE_PEM, pkey))
-        open(ssl_cert, 'w').write(crypto.dump_certificate(crypto.FILETYPE_PEM, cert))
+        io.open(ssl_key, 'w').write(crypto.dump_privatekey(crypto.FILETYPE_PEM, pkey))
+        io.open(ssl_cert, 'w').write(crypto.dump_certificate(crypto.FILETYPE_PEM, cert))
     except Exception:
         logger.log(u"Error creating SSL key and certificate", logger.ERROR)
         return False
@@ -1091,8 +1095,10 @@ def md5_for_file(filename, block_size=2 ** 16):
     :return MD5 hexdigest on success, or None on failure
     """
 
+    assert isinstance(filename, unicode)
+
     try:
-        with open(filename, 'rb') as f:
+        with io.open(filename, 'rb') as f:
             md5 = hashlib.md5()
             while True:
                 data = f.read(block_size)
@@ -1582,7 +1588,7 @@ def _setUpSession(session, headers):
     return session
 
 
-def getURL(url, post_data=None, params=None, headers=None, timeout=30, session=None, json=False):
+def getURL(url, post_data=None, params=None, headers=None, timeout=30, session=None, json=False, needBytes=False):
     """
     Returns a byte-string retrieved from the url provider.
     """
@@ -1635,7 +1641,7 @@ def getURL(url, post_data=None, params=None, headers=None, timeout=30, session=N
         logger.log(traceback.format_exc(), logger.WARNING)
         return None
 
-    return resp.text if not json else resp.json()
+    return (resp.text, resp.content)[needBytes] if not json else resp.json()
 
 
 def download_file(url, filename, session=None, headers=None):
@@ -1660,7 +1666,7 @@ def download_file(url, filename, session=None, headers=None):
                 return False
 
             try:
-                with open(filename, 'wb') as fp:
+                with io.open(filename, 'wb') as fp:
                     for chunk in resp.iter_content(chunk_size=1024):
                         if chunk:
                             fp.write(chunk)
@@ -1866,12 +1872,13 @@ def isFileLocked(checkfile, writeLockCheck=False):
     :param writeLockCheck: when true will check if the file is locked for writing (prevents move operations)
     """
 
-    checkfile = ek(os.path.abspath, checkfile)
+    checkfile = os.path.abspath(checkfile)
+    assert isinstance(checkfile, unicode)
 
     if not os.path.exists(checkfile):
         return True
     try:
-        f = open(checkfile, 'r')
+        f = io.open(checkfile, 'rb')
         f.close()
     except IOError:
         return True

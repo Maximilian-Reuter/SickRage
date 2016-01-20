@@ -1,3 +1,5 @@
+# coding=utf-8
+
 import re
 import time
 from hashlib import sha1
@@ -9,6 +11,7 @@ from sickbeard.clients import http_error_code
 from bencode import bencode, bdecode
 import requests
 from bencode.BTL import BTFailure
+
 
 class GenericClient(object):
     def __init__(self, name, host=None, username=None, password=None):
@@ -148,7 +151,7 @@ class GenericClient(object):
                 torrent_bdecode = bdecode(result.content)
             except BTFailure:
                 logger.log(u'Unable to bdecode torrent', logger.ERROR)
-                logger.log(u'Torrent bencoded data: {0}'.format(str(result.content)), logger.DEBUG)
+                logger.log(u'Torrent bencoded data: %r' % result.content, logger.DEBUG)
                 raise
             try:
                 info = torrent_bdecode["info"]

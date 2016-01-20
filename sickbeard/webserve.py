@@ -17,13 +17,13 @@
 # You should have received a copy of the GNU General Public License
 # along with SickRage.  If not, see <http://www.gnu.org/licenses/>.
 
-import traceback
+import io
 import os
+import re
 import time
 import urllib
-import re
 import datetime
-import codecs
+import traceback
 
 import sickbeard
 from sickbeard import config, sab
@@ -37,7 +37,7 @@ from sickbeard import subtitles
 from sickbeard import network_timezones
 from sickbeard.providers import newznab, rsstorrent
 from sickbeard.common import Quality, Overview, statusStrings, cpu_presets
-from sickbeard.common import SNATCHED, UNAIRED, IGNORED, WANTED, FAILED, SKIPPED
+from sickbeard.common import SNATCHED, UNAIRED, IGNORED, WANTED, FAILED, SKIPPED, WATCHED
 from sickbeard.blackandwhitelist import BlackAndWhiteList, short_group_names
 from sickbeard.browser import foldersAtPath
 from sickbeard.scene_numbering import get_scene_numbering, set_scene_numbering, get_scene_numbering_for_show, \
@@ -69,6 +69,8 @@ from sickbeard.versionChecker import CheckVersion
 
 import requests
 import markdown2
+
+from subprocess import Popen
 
 try:
     import json
@@ -118,7 +120,7 @@ class PageTemplate(MakoTemplate):
         self.arguments['sbHandleReverseProxy'] = sickbeard.HANDLE_REVERSE_PROXY
         self.arguments['sbThemeName'] = sickbeard.THEME_NAME
         self.arguments['sbDefaultPage'] = sickbeard.DEFAULT_PAGE
-        self.arguments['sbLogin'] = rh.get_current_user()
+        self.arguments['srLogin'] = rh.get_current_user()
         self.arguments['sbStartTime'] = rh.startTime
 
         if rh.request.headers['Host'][0] == '[':
@@ -177,8 +179,8 @@ class BaseHandler(RequestHandler):
 
         elif self.settings.get("debug") and "exc_info" in kwargs:
             exc_info = kwargs["exc_info"]
-            trace_info = ''.join(["%s<br/>" % line for line in traceback.format_exception(*exc_info)])
-            request_info = ''.join(["<strong>%s</strong>: %s<br/>" % (k, self.request.__dict__[k]) for k in
+            trace_info = ''.join(["%s<br>" % line for line in traceback.format_exception(*exc_info)])
+            request_info = ''.join(["<strong>%s</strong>: %s<br>" % (k, self.request.__dict__[k]) for k in
                                     self.request.__dict__.keys()])
             error = exc_info[1]
 
@@ -687,14 +689,16 @@ class Home(WebRoot):
 
         status_quality = '(' + ','.join([str(x) for x in Quality.SNATCHED + Quality.SNATCHED_PROPER]) + ')'
         status_download = '(' + ','.join([str(x) for x in Quality.DOWNLOADED + Quality.ARCHIVED]) + ')'
-
+        status_watched = '(' + ','.join([str(x) for x in Quality.WATCHED]) + ')'
+        
         sql_statement = 'SELECT showid, '
 
         sql_statement += '(SELECT COUNT(*) FROM tv_episodes WHERE showid=tv_eps.showid AND season > 0 AND episode > 0 AND airdate > 1 AND status IN ' + status_quality + ') AS ep_snatched, '
         sql_statement += '(SELECT COUNT(*) FROM tv_episodes WHERE showid=tv_eps.showid AND season > 0 AND episode > 0 AND airdate > 1 AND status IN ' + status_download + ') AS ep_downloaded, '
+        sql_statement += '(SELECT COUNT(*) FROM tv_episodes WHERE showid=tv_eps.showid AND season > 0 AND episode > 0 AND airdate > 1 AND status IN ' + status_watched + ') AS ep_watched, '
         sql_statement += '(SELECT COUNT(*) FROM tv_episodes WHERE showid=tv_eps.showid AND season > 0 AND episode > 0 AND airdate > 1 '
-        sql_statement += ' AND ((airdate <= ' + today + ' AND (status = ' + str(SKIPPED) + ' OR status = ' + str(WANTED) + ' OR status = ' + str(FAILED) + ')) '
-        sql_statement += ' OR (status IN ' + status_quality + ') OR (status IN ' + status_download + '))) AS ep_total, '
+        sql_statement += ' AND ((airdate <= ' + today + ' AND (status = ' + str(SKIPPED) + ' OR status = ' + str(FAILED) + ')) '
+        sql_statement += ' OR (status IN ' + status_watched + ') OR (status IN ' + status_download + '))) AS ep_total, '
 
         sql_statement += ' (SELECT airdate FROM tv_episodes WHERE showid=tv_eps.showid AND airdate >= ' + today + ' AND (status = ' + str(UNAIRED) + ' OR status = ' + str(WANTED) + ') ORDER BY airdate ASC LIMIT 1) AS ep_airs_next, '
         sql_statement += ' (SELECT airdate FROM tv_episodes WHERE showid=tv_eps.showid AND airdate > 1 AND status <> ' + str(UNAIRED) + ' ORDER BY airdate DESC LIMIT 1) AS ep_airs_prev '
@@ -874,7 +878,7 @@ class Home(WebRoot):
                 finalResult += "Test KODI notice sent successfully to " + urllib.unquote_plus(curHost)
             else:
                 finalResult += "Test KODI notice failed to " + urllib.unquote_plus(curHost)
-            finalResult += "<br />\n"
+            finalResult += "<br>\n"
 
         return finalResult
 
@@ -891,7 +895,7 @@ class Home(WebRoot):
                 finalResult += 'Successful test notice sent to Plex client ... ' + urllib.unquote_plus(curHost)
             else:
                 finalResult += 'Test failed for Plex client ... ' + urllib.unquote_plus(curHost)
-            finalResult += '<br />' + '\n'
+            finalResult += '<br>' + '\n'
 
         ui.notifications.message('Tested Plex client(s): ', urllib.unquote_plus(host.replace(',', ', ')))
 
@@ -911,8 +915,8 @@ class Home(WebRoot):
         elif curResult is False:
             finalResult += 'Test failed, No Plex Media Server host specified'
         else:
-            finalResult += 'Test failed for Plex server(s) ... ' + urllib.unquote_plus(curResult.replace(',', ', '))
-        finalResult += '<br />' + '\n'
+            finalResult += 'Test failed for Plex server(s) ... ' + urllib.unquote_plus(str(curResult).replace(',', ', '))
+        finalResult += '<br>' + '\n'
 
         ui.notifications.message('Tested Plex Media Server host(s): ', urllib.unquote_plus(host.replace(',', ', ')))
 
@@ -1231,6 +1235,7 @@ class Home(WebRoot):
         epCounts[Overview.GOOD] = 0
         epCounts[Overview.UNAIRED] = 0
         epCounts[Overview.SNATCHED] = 0
+        epCounts[Overview.WATCHED] = 0
 
         for curResult in sqlResults:
             curEpCat = showObj.getOverview(int(curResult["status"] or -1))
@@ -1309,7 +1314,7 @@ class Home(WebRoot):
             if season == -1:
                 season = "*"
             out.append("S" + str(season) + ": " + ", ".join(names))
-        return "<br/>".join(out)
+        return "<br>".join(out)
 
     def editShow(self, show=None, location=None, anyQualities=[], bestQualities=[], exceptions_list=[],
                  flatten_folders=None, paused=None, directCall=False, air_by_date=None, sports=None, dvdorder=None,
@@ -1748,7 +1753,7 @@ class Home(WebRoot):
                 myDB.mass_action(sql_l)
 
         if int(status) == WANTED and not showObj.paused:
-            msg = "Backlog was automatically started for the following seasons of <b>" + showObj.name + "</b>:<br />"
+            msg = "Backlog was automatically started for the following seasons of <b>" + showObj.name + "</b>:<br>"
             msg += '<ul>'
 
             for season, segment in segments.iteritems():
@@ -1767,7 +1772,7 @@ class Home(WebRoot):
             logger.log(u"Some episodes were set to wanted, but " + showObj.name + " is paused. Not adding to Backlog until show is unpaused")
 
         if int(status) == FAILED:
-            msg = "Retrying Search was automatically started for the following season of <b>" + showObj.name + "</b>:<br />"
+            msg = "Retrying Search was automatically started for the following season of <b>" + showObj.name + "</b>:<br>"
             msg += '<ul>'
 
             for season, segment in segments.iteritems():
@@ -1896,6 +1901,37 @@ class Home(WebRoot):
             return json.dumps({'result': 'success'})
         else:
             return json.dumps({'result': 'failure'})
+
+    def displayEpisode(self, show=None, season=None, episode=None, direct=False):
+
+        # retrieve the episode object and fail if we can't get one
+        ep_obj = self._getEpisode(show, season, episode)
+        sql_l = []
+        if isinstance(ep_obj, str):
+            return json.dumps({'result': 'failure'})
+    
+        logger.log(u"Showing \""+ep_obj._location+"\"",logger.DEBUG)
+        # open VLC and show episode
+        Popen(["C:\Program Files (x86)\VideoLAN\VLC\Vlc.exe", ep_obj._location])
+        
+        #set episode as watched
+        curStatus,curQuality = Quality.splitCompositeStatus(ep_obj.status)
+        logger.log(u"current Status \""+str(ep_obj.status)+"\"",logger.DEBUG)
+        logger.log(u"potential new Status \""+str(Quality.compositeStatus(WATCHED,curQuality))+"\"",logger.DEBUG)
+        ep_obj.status =  Quality.compositeStatus(WATCHED,curQuality)
+        logger.log(u"new Status \""+str(ep_obj.status)+"\"",logger.DEBUG)
+        
+        sql_l.append(ep_obj.get_sql())
+        logger.log(u"update Database",logger.DEBUG)
+        if len(sql_l) > 0:
+                myDB = db.DBConnection()
+                myDB.mass_action(sql_l)
+                
+        if direct:
+            return json.dumps({'result': 'success'})
+        else:
+            return self.redirect("/home/displayShow?show=" + show)
+        	
 
     ### Returns the current ep_queue_item status for the current viewed show.
     # Possible status: Downloaded, Snatched, etc...
@@ -2173,8 +2209,8 @@ class HomePostProcess(Home):
         t = PageTemplate(rh=self, filename="home_postprocess.mako")
         return t.render(title='Post Processing', header='Post Processing', topmenu='home')
 
-    def processEpisode(self, dir=None, nzbName=None, jobName=None, quiet=None, process_method=None, force=None,
-                       is_priority=None, delete_on="0", failed="0", type="auto", *args, **kwargs):
+    def processEpisode(self, proc_dir=None, nzbName=None, jobName=None, quiet=None, process_method=None, force=None,
+                       is_priority=None, delete_on="0", failed="0", proc_type="auto", *args, **kwargs):
 
         def argToBool(argument):
             if isinstance(argument, basestring):
@@ -2189,18 +2225,18 @@ class HomePostProcess(Home):
 
             return argument
 
-        if not dir:
+        if not proc_dir:
             return self.redirect("/home/postprocess/")
         else:
             result = processTV.processDir(
-                dir, nzbName, process_method=process_method, force=argToBool(force),
-                is_priority=argToBool(is_priority), delete_on=argToBool(delete_on), failed=argToBool(failed), type=type
+                proc_dir, nzbName, process_method=process_method, force=argToBool(force),
+                is_priority=argToBool(is_priority), delete_on=argToBool(delete_on), failed=argToBool(failed), proc_type=proc_type
             )
 
             if quiet is not None and int(quiet) == 1:
                 return result
 
-            result = result.replace("\n", "<br />\n")
+            result = result.replace("\n", "<br>\n")
             return self._genericMessage("Postprocessing results", result)
 
 
@@ -2992,6 +3028,8 @@ class Manage(Home, WebRoot):
             epCounts[Overview.GOOD] = 0
             epCounts[Overview.UNAIRED] = 0
             epCounts[Overview.SNATCHED] = 0
+            epCounts[Overview.WATCHED] = 0
+            
 
             sqlResults = myDB.select(
                 "SELECT * FROM tv_episodes WHERE tv_episodes.showid in (SELECT tv_shows.indexer_id FROM tv_shows WHERE tv_shows.indexer_id = ? AND paused = 0) ORDER BY tv_episodes.season DESC, tv_episodes.episode DESC",
@@ -3349,22 +3387,22 @@ class Manage(Home, WebRoot):
         messageDetail = ""
 
         if updates:
-            messageDetail += "<br /><b>Updates</b><br /><ul><li>"
+            messageDetail += "<br><b>Updates</b><br><ul><li>"
             messageDetail += "</li><li>".join(updates)
             messageDetail += "</li></ul>"
 
         if refreshes:
-            messageDetail += "<br /><b>Refreshes</b><br /><ul><li>"
+            messageDetail += "<br><b>Refreshes</b><br><ul><li>"
             messageDetail += "</li><li>".join(refreshes)
             messageDetail += "</li></ul>"
 
         if renames:
-            messageDetail += "<br /><b>Renames</b><br /><ul><li>"
+            messageDetail += "<br><b>Renames</b><br><ul><li>"
             messageDetail += "</li><li>".join(renames)
             messageDetail += "</li></ul>"
 
         if subtitles:
-            messageDetail += "<br /><b>Subtitles</b><br /><ul><li>"
+            messageDetail += "<br><b>Subtitles</b><br><ul><li>"
             messageDetail += "</li><li>".join(subtitles)
             messageDetail += "</li></ul>"
 
@@ -3393,7 +3431,7 @@ class Manage(Home, WebRoot):
             if helpers.check_url(webui_url + 'download/'):
                 webui_url += 'download/'
             else:
-                info_download_station = '<p>To have a better experience please set the Download Station alias as <code>download</code>, you can check this setting in the Synology DSM <b>Control Panel</b> > <b>Application Portal</b>. Make sure you allow DSM to be embedded with iFrames too in <b>Control Panel</b> > <b>DSM Settings</b> > <b>Security</b>.</p><br/><p>There is more information about this available <a href="https://github.com/midgetspy/Sick-Beard/pull/338">here</a>.</p><br/>'
+                info_download_station = '<p>To have a better experience please set the Download Station alias as <code>download</code>, you can check this setting in the Synology DSM <b>Control Panel</b> > <b>Application Portal</b>. Make sure you allow DSM to be embedded with iFrames too in <b>Control Panel</b> > <b>DSM Settings</b> > <b>Security</b>.</p><br><p>There is more information about this available <a href="https://github.com/midgetspy/Sick-Beard/pull/338">here</a>.</p><br>'
 
         if not sickbeard.TORRENT_PASSWORD == "" and not sickbeard.TORRENT_USERNAME == "":
             webui_url = re.sub('://', '://' + str(sickbeard.TORRENT_USERNAME) + ':' + str(sickbeard.TORRENT_PASSWORD) + '@', webui_url)
@@ -3737,7 +3775,7 @@ class ConfigGeneral(Config):
             for x in results:
                 logger.log(x, logger.ERROR)
             ui.notifications.error('Error(s) Saving Configuration',
-                                   '<br />\n'.join(results))
+                                   '<br>\n'.join(results))
         else:
             ui.notifications.message('Configuration Saved', ek(os.path.join, sickbeard.CONFIG_FILE))
 
@@ -3779,7 +3817,7 @@ class ConfigBackupRestore(Config):
         else:
             finalResult += "You need to choose a folder to save your backup to!"
 
-        finalResult += "<br />\n"
+        finalResult += "<br>\n"
 
         return finalResult
 
@@ -3800,7 +3838,7 @@ class ConfigBackupRestore(Config):
         else:
             finalResult += "You need to select a backup file to restore!"
 
-        finalResult += "<br />\n"
+        finalResult += "<br>\n"
 
         return finalResult
 
@@ -3900,7 +3938,7 @@ class ConfigSearch(Config):
             for x in results:
                 logger.log(x, logger.ERROR)
             ui.notifications.error('Error(s) Saving Configuration',
-                                   '<br />\n'.join(results))
+                                   '<br>\n'.join(results))
         else:
             ui.notifications.message('Configuration Saved', ek(os.path.join, sickbeard.CONFIG_FILE))
 
@@ -4027,7 +4065,7 @@ class ConfigPostProcessing(Config):
             for x in results:
                 logger.log(x, logger.WARNING)
             ui.notifications.error('Error(s) Saving Configuration',
-                                   '<br />\n'.join(results))
+                                   '<br>\n'.join(results))
         else:
             ui.notifications.message('Configuration Saved', ek(os.path.join, sickbeard.CONFIG_FILE))
 
@@ -4579,7 +4617,7 @@ class ConfigProviders(Config):
             for x in results:
                 logger.log(x, logger.ERROR)
             ui.notifications.error('Error(s) Saving Configuration',
-                                   '<br />\n'.join(results))
+                                   '<br>\n'.join(results))
         else:
             ui.notifications.message('Configuration Saved', ek(os.path.join, sickbeard.CONFIG_FILE))
 
@@ -4811,7 +4849,7 @@ class ConfigNotifications(Config):
             for x in results:
                 logger.log(x, logger.ERROR)
             ui.notifications.error('Error(s) Saving Configuration',
-                                   '<br />\n'.join(results))
+                                   '<br>\n'.join(results))
         else:
             ui.notifications.message('Configuration Saved', ek(os.path.join, sickbeard.CONFIG_FILE))
 
@@ -4871,7 +4909,7 @@ class ConfigSubtitles(Config):
             for x in results:
                 logger.log(x, logger.ERROR)
             ui.notifications.error('Error(s) Saving Configuration',
-                                   '<br />\n'.join(results))
+                                   '<br>\n'.join(results))
         else:
             ui.notifications.message('Configuration Saved', ek(os.path.join, sickbeard.CONFIG_FILE))
 
@@ -4906,7 +4944,7 @@ class ConfigAnime(Config):
             for x in results:
                 logger.log(x, logger.ERROR)
             ui.notifications.error('Error(s) Saving Configuration',
-                                   '<br />\n'.join(results))
+                                   '<br>\n'.join(results))
         else:
             ui.notifications.message('Configuration Saved', ek(os.path.join, sickbeard.CONFIG_FILE))
 
@@ -4965,7 +5003,6 @@ class ErrorLogs(WebRoot):
             finalData = []
 
             for x in reversed(data_in):
-                x = ss(x)
                 match = re.match(regex, x)
 
                 if match:
@@ -5029,17 +5066,17 @@ class ErrorLogs(WebRoot):
         data = []
 
         if os.path.isfile(logger.logFile):
-            with ek(codecs.open, *[logger.logFile, 'r', 'utf-8']) as f:
+            with io.open(logger.logFile, 'r', encoding='utf-8') as f:
                 data = Get_Data(minLevel, f.readlines(), 0, regex, logFilter, logSearch, maxLines)
 
         for i in range(1, int(sickbeard.LOG_NR)):
             if os.path.isfile(logger.logFile + "." + str(i)) and (len(data) <= maxLines):
-                with ek(codecs.open, *[logger.logFile + "." + str(i), 'r', 'utf-8']) as f:
+                with io.open(logger.logFile + "." + str(i), 'r', encoding='utf-8') as f:
                     data += Get_Data(minLevel, f.readlines(), len(data), regex, logFilter, logSearch, maxLines)
 
         return t.render(
             header="Log File", title="Logs", topmenu="system",
-            logLines="".join(data), minLevel=minLevel, logNameFilters=logNameFilters,
+            logLines=u"".join(data), minLevel=minLevel, logNameFilters=logNameFilters,
             logFilter=logFilter, logSearch=logSearch)
 
     def submit_errors(self):

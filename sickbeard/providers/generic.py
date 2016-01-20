@@ -126,14 +126,14 @@ class GenericProvider(object):
 
         return result
 
-    def getURL(self, url, post_data=None, params=None, timeout=30, json=False):
+    def getURL(self, url, post_data=None, params=None, timeout=30, json=False, needBytes=False):
         """
         By default this is just a simple urlopen call but this method should be overridden
         for providers with special URL requirements (like cookies)
         """
 
         return helpers.getURL(url, post_data=post_data, params=params, headers=self.headers, timeout=timeout,
-                              session=self.session, json=json)
+                              session=self.session, json=json, needBytes=needBytes)
 
 
     def _makeURL(self, result):
@@ -249,6 +249,34 @@ class GenericProvider(object):
         """
         (title, url) = self._get_title_and_url(item)
         quality = Quality.sceneQuality(title, anime)
+        height=""
+        if quality == Quality.FULLHDTV or quality == Quality.FULLHDWEBDL or quality == Quality.FULLHDBLURAY:
+            height="1080p"
+        elif quality == Quality.HDTV or quality == Quality.HDWEBDL or quality == Quality.HDBLURAY:
+            height="720p"
+        if height != "":
+            rlsSize = self._get_size(item)
+            if rlsSize > -1:
+                rlsCodec = Quality.sceneQualityFromName(title,quality)
+                if rlsCodec == "":
+                    rlsCodec = "x264"
+                    
+                if "265" in rlsCodec or rlsCodec== "hevc":
+                    if self.show.runtime > 30:
+                        if (height=="1080p" and rlsSize <= 400000000) or (height=="720p" and rlsSize <= 200000000):
+                            quality = Quality.UNKNOWN
+                    else:
+                        if (height=="1080p" and rlsSize <= 200000000) or (height=="720p" and rlsSize <= 100000000):
+                            quality = Quality.UNKNOWN
+                elif "264" in rlsCodec or rlsCodec== "avc":
+                    if self.show.runtime > 30:
+                        if (height=="1080p" and rlsSize <= 1000000000) or (height=="720p" and rlsSize <= 800000000):
+                            quality = Quality.UNKNOWN
+                    else:
+                        if (height=="1080p" and rlsSize <= 700000000) or (height=="720p" and rlsSize <= 500000000):
+                            quality = Quality.UNKNOWN
+
+                
         return quality
 
     # pylint: disable=R0201,W0613

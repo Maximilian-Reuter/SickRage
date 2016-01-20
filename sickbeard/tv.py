@@ -1142,10 +1142,10 @@ class TVShow(object):
     def saveToDB(self, forceSave=False):
 
         if not self.dirty and not forceSave:
-            logger.log(str(self.indexerid) + ": Not saving show to db - record is not dirty", logger.DEBUG)
+            # logger.log(str(self.indexerid) + ": Not saving show to db - record is not dirty", logger.DEBUG)
             return
 
-        logger.log(str(self.indexerid) + u": Saving show info to database", logger.DEBUG)
+        logger.log(u"%i: Saving to database: %s" % (self.indexerid, self.name), logger.DEBUG)
 
         controlValueDict = {"indexer_id": self.indexerid}
         newValueDict = {"indexer": self.indexer,
@@ -1298,6 +1298,8 @@ class TVShow(object):
             return Overview.SKIPPED
         elif epStatus in Quality.ARCHIVED:
             return Overview.GOOD
+        elif epStatus in Quality.WATCHED:
+            return Overview.WATCHED
         elif epStatus in Quality.DOWNLOADED + Quality.SNATCHED + Quality.SNATCHED_PROPER + Quality.FAILED + Quality.SNATCHED_BEST:
 
             _, bestQualities = Quality.splitQuality(self.quality)  # @UnusedVariable
@@ -1815,17 +1817,17 @@ class TVEpisode(object):
 
     def __str__(self):
 
-        toReturn = ""
-        toReturn += "%s - S%02dE%02d - %s " % (self.show.name, self.season or 0, self.episode or 0, self.name) + "\n"
-        toReturn += "location: " + str(self.location) + "\n"
-        toReturn += "description: " + str(self.description) + "\n"
-        toReturn += "subtitles: " + str(",".join(self.subtitles)) + "\n"
-        toReturn += "subtitles_searchcount: " + str(self.subtitles_searchcount) + "\n"
-        toReturn += "subtitles_lastsearch: " + str(self.subtitles_lastsearch) + "\n"
-        toReturn += "airdate: " + str(self.airdate.toordinal()) + " (" + str(self.airdate) + ")\n"
-        toReturn += "hasnfo: " + str(self.hasnfo) + "\n"
-        toReturn += "hastbn: " + str(self.hastbn) + "\n"
-        toReturn += "status: " + str(self.status) + "\n"
+        toReturn = u""
+        toReturn += u"%r - S%02rE%02r - %r\n" % (self.show.name, self.season, self.episode, self.name)
+        toReturn += u"location: %r\n" % self.location
+        toReturn += u"description: %r\n" % self.description
+        toReturn += u"subtitles: %r\n" % u",".join(self.subtitles)
+        toReturn += u"subtitles_searchcount: %r\n" % self.subtitles_searchcount
+        toReturn += u"subtitles_lastsearch: %r\n" % self.subtitles_lastsearch
+        toReturn += u"airdate: %r (%r)\n" % (self.airdate.toordinal(), self.airdate)
+        toReturn += u"hasnfo: %r\n" % self.hasnfo
+        toReturn += u"hastbn: %r\n" % self.hastbn
+        toReturn += u"status: %r\n" % self.status
         return toReturn
 
     def createMetaFiles(self):
@@ -1949,12 +1951,8 @@ class TVEpisode(object):
         """
 
         if not self.dirty and not forceSave:
-            logger.log(str(self.show.indexerid) + u": Not saving episode to db - record is not dirty", logger.DEBUG)
+            # logger.log(str(self.show.indexerid) + u": Not saving episode to db - record is not dirty", logger.DEBUG)
             return
-
-        logger.log(str(self.show.indexerid) + u": Saving episode details to database", logger.DEBUG)
-
-        logger.log(u"STATUS IS " + str(self.status), logger.DEBUG)
 
         newValueDict = {"indexerid": self.indexerid,
                         "indexer": self.indexer,
@@ -1978,6 +1976,9 @@ class TVEpisode(object):
         controlValueDict = {"showid": self.show.indexerid,
                             "season": self.season,
                             "episode": self.episode}
+
+        # logger.log(u"%s: Saving episode details to database %rx%r: %s" %
+        #            (self.show.indexerid, self.season, self.episode, statusStrings[self.status]), logger.DEBUG)
 
         # use a custom update/insert method to get the data into the DB
         myDB = db.DBConnection()
