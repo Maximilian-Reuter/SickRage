@@ -514,7 +514,7 @@ def already_postprocessed(dirName, videofile, force, result):
         if parse_result and (parse_result.show.indexerid and parse_result.episode_numbers and parse_result.season_number):
             search_sql += " and tv_episodes.showid = '" + str(parse_result.show.indexerid) + "' and tv_episodes.season = '" + str(parse_result.season_number) + "' and tv_episodes.episode = '" + str(parse_result.episode_numbers[0]) + "'"
 
-        search_sql += " and tv_episodes.status IN (" + ",".join([str(x) for x in common.Quality.DOWNLOADED]) + ")"
+        search_sql += " and tv_episodes.status IN (" + ",".join([str(x) for x in common.Quality.DOWNLOADED + common.Quality.WATCHED]) + ")"
         search_sql += " and history.resource LIKE ?"
         sqlResult = myDB.select(search_sql, [u'%' + videofile])
         if sqlResult:

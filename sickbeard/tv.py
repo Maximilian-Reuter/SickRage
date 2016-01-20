@@ -1088,7 +1088,7 @@ class TVShow(object):
                 if not sickbeard.SKIP_REMOVED_FILES:
                     with curEp.lock:
                         # if it used to have a file associated with it and it doesn't anymore then set it to sickbeard.EP_DEFAULT_DELETED_STATUS
-                        if curEp.location and curEp.status in Quality.DOWNLOADED:
+                        if curEp.location and curEp.status in Quality.DOWNLOADED+Quality.WATCHED:
 
                             if sickbeard.EP_DEFAULT_DELETED_STATUS == ARCHIVED:
                                 _, oldQuality = Quality.splitCompositeStatus(curEp.status)
@@ -1297,7 +1297,7 @@ class TVShow(object):
         elif epStatus in (SKIPPED, IGNORED):
             return Overview.SKIPPED
         elif epStatus in Quality.ARCHIVED:
-            return Overview.GOOD
+            return Overview.WATCHED
         elif epStatus in Quality.WATCHED:
             return Overview.WATCHED
         elif epStatus in Quality.DOWNLOADED + Quality.SNATCHED + Quality.SNATCHED_PROPER + Quality.FAILED + Quality.SNATCHED_BEST:
@@ -1721,7 +1721,7 @@ class TVEpisode(object):
         # if we have a media file then it's downloaded
         elif sickbeard.helpers.isMediaFile(self.location):
             # leave propers alone, you have to either post-process them or manually change them back
-            if self.status not in Quality.SNATCHED_PROPER + Quality.DOWNLOADED + Quality.SNATCHED + Quality.ARCHIVED:
+            if self.status not in Quality.SNATCHED_PROPER + Quality.DOWNLOADED + Quality.SNATCHED + Quality.ARCHIVED+ Quality.WATCHED:
                 logger.log(
                     u"5 Status changes from " + str(self.status) + " to " + str(Quality.statusFromName(self.location)),
                     logger.DEBUG)

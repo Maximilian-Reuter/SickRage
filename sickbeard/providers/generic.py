@@ -250,17 +250,23 @@ class GenericProvider(object):
         (title, url) = self._get_title_and_url(item)
         quality = Quality.sceneQuality(title, anime)
         height=""
+        logger.log(u"Check if size minimums should apply", logger.DEBUG)
         if quality == Quality.FULLHDTV or quality == Quality.FULLHDWEBDL or quality == Quality.FULLHDBLURAY:
             height="1080p"
         elif quality == Quality.HDTV or quality == Quality.HDWEBDL or quality == Quality.HDBLURAY:
             height="720p"
         if height != "":
+            logger.log(u"Size minimums apply Height is: %s" %height, logger.DEBUG)
             rlsSize = self._get_size(item)
             if rlsSize > -1:
+                logger.log(u"Rls has size, Size: %s" %rlsSize, logger.DEBUG)
                 rlsCodec = Quality.sceneQualityFromName(title,quality)
+                
                 if rlsCodec == "":
                     rlsCodec = "x264"
+                    logger.log(u"Rls has no codec, 'x264' set as default", logger.DEBUG)
                     
+                logger.log(u"Rls has codec, codec: %s" %rlsCodec, logger.DEBUG) 
                 if "265" in rlsCodec or rlsCodec== "hevc":
                     if self.show.runtime > 30:
                         if (height=="1080p" and rlsSize <= 400000000) or (height=="720p" and rlsSize <= 200000000):
@@ -402,7 +408,7 @@ class GenericProvider(object):
                 continue
 
             showObj = parse_result.show
-            quality = parse_result.quality
+            quality = self.getQuality(item, anime=show.is_anime)
             release_group = parse_result.release_group
             version = parse_result.version
 
